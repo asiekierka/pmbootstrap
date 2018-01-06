@@ -2,14 +2,17 @@
 pkgname=device-semc-anzu
 pkgdesc="Xperia Arc"
 pkgver=1
-pkgrel=10
+pkgrel=0
 url="https://postmarketos.org"
 license="MIT"
 arch="noarch"
 options="!check"
-depends="linux-semc-anzu msm-fb-refresher mkbootimg libsparse"
+depends="linux-semc-anzu linux-firmware msm-fb-refresher mkbootimg libsparse mesa-dri-swrast"
 makedepends="devicepkg-dev"
-source="deviceinfo"
+source="
+	deviceinfo
+	modules-load.conf
+"
 
 build() {
 	devicepkg_build $startdir $pkgname
@@ -17,6 +20,9 @@ build() {
 
 package() {
 	devicepkg_package $startdir $pkgname
+	install -Dm644 "$srcdir"/modules-load.conf \
+		"$pkgdir"/etc/modules-load.d/00-${pkgname}.conf
 }
 
-sha512sums="6663fe343036da4779cfe33c666555da5dc18e72be14651c62674c85a3da0557456ce82b09a8da75c15f67969a3a029b7a881eb4669cba00c3697ecf4de98448  deviceinfo"
+sha512sums="290725561229df2c70396a950aff00605122d146def342d9a48fbb282fe238175095d1cfefdb83668da8ef11eaaf048599a807ef06c37e051916a64f2cc25be5  deviceinfo
+fc2241310bfc9777cd2240857d9176c48dbc8bdbd871b280e2703a2dce7c3810c0a36b78557088d81a161900c74ece2015c40b3c7e72f7970b46a3991e7856c2  modules-load.conf"
