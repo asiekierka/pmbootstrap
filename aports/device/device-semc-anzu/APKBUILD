@@ -11,6 +11,8 @@ depends="linux-semc-anzu linux-firmware msm-fb-refresher mkbootimg libsparse mes
 makedepends="devicepkg-dev"
 source="
 	deviceinfo
+	fb.modes
+	fb-set-mode.sh
 	modules-load.conf
 "
 
@@ -20,9 +22,15 @@ build() {
 
 package() {
 	devicepkg_package $startdir $pkgname
+	install -Dm644 "$srcdir"/fb.modes \
+		"$pkgdir"/etc/fb.modes
+	install -Dm644 "$srcdir"/fb-set-mode.sh \
+		"$pkgdir"/etc/profile.d/00-fb-set-mode.sh
 	install -Dm644 "$srcdir"/modules-load.conf \
 		"$pkgdir"/etc/modules-load.d/00-${pkgname}.conf
 }
 
 sha512sums="28a4b765f211c69577ecefcad650453056f1adf7f5d7d08c9909637d7810b29fec57638cf0efccb1ab5914a4f9a774daad4bbe12e2d0a177705a75f1bef880e9  deviceinfo
+d479cb887d14fc21a76eccd0c89a0780a3abaedf97ef1832cd1662e1e59e594be2720c6cc0ef6bfdba78a4c2e4ee73e526b057a9f3783aac34cee41b5fe82483  fb.modes
+63412d0845a8bd3c867ee0d684082558a5a45e25ce60f03599478ff5b97e937ad70e42d3a16b2e34af933f0bb12eebf0d97df75f3a851cfbcbf2109cda181cb1  fb-set-mode.sh
 fc2241310bfc9777cd2240857d9176c48dbc8bdbd871b280e2703a2dce7c3810c0a36b78557088d81a161900c74ece2015c40b3c7e72f7970b46a3991e7856c2  modules-load.conf"

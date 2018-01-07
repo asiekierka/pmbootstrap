@@ -1,0 +1,860 @@
+diff --git a/drivers/char/msm_rotator.c b/drivers/char/msm_rotator.c
+index 825b74be913..702b6031b8e 100644
+--- a/drivers/char/msm_rotator.c
++++ b/drivers/char/msm_rotator.c
+@@ -725,6 +725,7 @@ static int get_bpp(int format)
+ 
+ 	case MDP_XRGB_8888:
+ 	case MDP_ARGB_8888:
++	case MDP_ABGR_8888:
+ 	case MDP_RGBA_8888:
+ 	case MDP_BGRA_8888:
+ 	case MDP_RGBX_8888:
+@@ -740,6 +741,7 @@ static int get_bpp(int format)
+ 		return 1;
+ 
+ 	case MDP_RGB_888:
++	case MDP_BGR_888:
+ 	case MDP_YCBCR_H1V1:
+ 	case MDP_YCRCB_H1V1:
+ 		return 3;
+@@ -782,10 +784,12 @@ static int msm_rotator_get_plane_sizes(uint32_t format,	uint32_t w, uint32_t h,
+ 	switch (format) {
+ 	case MDP_XRGB_8888:
+ 	case MDP_ARGB_8888:
++	case MDP_ABGR_8888:
+ 	case MDP_RGBA_8888:
+ 	case MDP_BGRA_8888:
+ 	case MDP_RGBX_8888:
+ 	case MDP_RGB_888:
++	case MDP_BGR_888:
+ 	case MDP_RGB_565:
+ 	case MDP_BGR_565:
+ 	case MDP_YCBYCR_H2V1:
+@@ -1634,7 +1638,19 @@ static int msm_rotator_rgb_types(struct msm_rotator_img_info *info,
+ 			bbits = COMPONENT_8BITS;
+ 			break;
+ 
++		case MDP_BGR_888:
++			iowrite32(GET_PACK_PATTERN(0, CLR_B, CLR_G, CLR_R, 8),
++				  MSM_ROTATOR_SRC_UNPACK_PATTERN1);
++			iowrite32(GET_PACK_PATTERN(0, CLR_B, CLR_G, CLR_R, 8),
++				  MSM_ROTATOR_OUT_PACK_PATTERN1);
++			abits = 0;
++			rbits = COMPONENT_8BITS;
++			gbits = COMPONENT_8BITS;
++			bbits = COMPONENT_8BITS;
++			break;
++
+ 		case MDP_ARGB_8888:
++		case MDP_ABGR_8888:
+ 		case MDP_RGBA_8888:
+ 		case MDP_XRGB_8888:
+ 		case MDP_RGBX_8888:
+@@ -2044,7 +2060,9 @@ static int msm_rotator_do_rotate_sub(
+ 	case MDP_RGB_565:
+ 	case MDP_BGR_565:
+ 	case MDP_RGB_888:
++	case MDP_BGR_888:
+ 	case MDP_ARGB_8888:
++	case MDP_ABGR_8888:
+ 	case MDP_RGBA_8888:
+ 	case MDP_XRGB_8888:
+ 	case MDP_BGRA_8888:
+@@ -2464,7 +2482,9 @@ static int msm_rotator_start(unsigned long arg,
+ 	case MDP_RGB_565:
+ 	case MDP_BGR_565:
+ 	case MDP_RGB_888:
++	case MDP_BGR_888:
+ 	case MDP_ARGB_8888:
++	case MDP_ABGR_8888:
+ 	case MDP_RGBA_8888:
+ 	case MDP_XRGB_8888:
+ 	case MDP_RGBX_8888:
+diff --git a/drivers/video/msm/mdp4_overlay.c b/drivers/video/msm/mdp4_overlay.c
+index 2a95981e435..ffb29a4926c 100644
+--- a/drivers/video/msm/mdp4_overlay.c
++++ b/drivers/video/msm/mdp4_overlay.c
+@@ -473,7 +473,9 @@ void mdp4_overlay_dmae_cfg(struct msm_fb_data_type *mfd, int atv)
+ 	else
+ 		dmae_cfg_reg = 0;
+ 
+-	if (mfd->fb_imgType == MDP_BGR_565)
++	if (mfd->fb_imgType == MDP_BGR_565
++		|| mfd->fb_imgType == MDP_ABGR_8888
++		|| mfd->fb_imgType == MDP_BGR_888)
+ 		dmae_cfg_reg |= DMA_PACK_PATTERN_BGR;
+ 	else
+ 		dmae_cfg_reg |= DMA_PACK_PATTERN_RGB;
+@@ -580,7 +582,9 @@ void mdp4_overlay_dmas_cfg(struct msm_fb_data_type *mfd)
+ 	dma_s_cfg_reg |= DMA_BUF_FORMAT_RGB565; /* blt only */
+ #endif
+ 
+-	if (mfd->fb_imgType == MDP_BGR_565)
++	if (mfd->fb_imgType == MDP_BGR_565
++		|| mfd->fb_imgType == MDP_ABGR_8888
++		|| mfd->fb_imgType == MDP_BGR_888)
+ 		dma_s_cfg_reg |= DMA_PACK_PATTERN_BGR;
+ 	else
+ 		dma_s_cfg_reg |= DMA_PACK_PATTERN_RGB;
+@@ -646,7 +650,8 @@ void mdp4_overlay_dmap_cfg(struct msm_fb_data_type *mfd, int lcdc)
+ 	dma2_cfg_reg |= DMA_BUF_FORMAT_RGB565; /* blt only */
+ #endif
+ 
+-	if (mfd->fb_imgType == MDP_BGR_565)
++	if (mfd->fb_imgType == MDP_BGR_565
++		|| mfd->fb_imgType == MDP_BGR_888)
+ 		dma2_cfg_reg |= DMA_PACK_PATTERN_BGR;
+ 	else
+ 		dma2_cfg_reg |= DMA_PACK_PATTERN_RGB;
+@@ -1013,6 +1018,7 @@ static void mdp4_overlay_vg_get_src_offset(struct mdp4_overlay_pipe *pipe,
+ 		case MDP_BGR_565:
+ 		case MDP_XRGB_8888:
+ 		case MDP_RGB_888:
++		case MDP_BGR_888:
+ 		case MDP_YCBCR_H1V1:
+ 		case MDP_YCRCB_H1V1:
+ 			*luma_off = (pipe->src_x * pipe->bpp) +
+@@ -1190,6 +1196,7 @@ int mdp4_overlay_format2type(uint32 format)
+ 	switch (format) {
+ 	case MDP_RGB_565:
+ 	case MDP_RGB_888:
++	case MDP_BGR_888:
+ 	case MDP_BGR_565:
+ 	case MDP_XRGB_8888:
+ 	case MDP_ARGB_8888:
+@@ -1267,6 +1274,23 @@ int mdp4_overlay_format2pipe(struct mdp4_overlay_pipe *pipe)
+ 		pipe->bpp = 3;	/* 3 bpp */
+ 		pipe->chroma_sample = MDP4_CHROMA_RGB;
+ 		break;
++	case MDP_BGR_888:
++		pipe->frame_format = MDP4_FRAME_FORMAT_LINEAR;
++		pipe->fetch_plane = OVERLAY_PLANE_INTERLEAVED;
++		pipe->a_bit = 0;
++		pipe->r_bit = 3;	/* R, 8 bits */
++		pipe->b_bit = 3;	/* B, 8 bits */
++		pipe->g_bit = 3;	/* G, 8 bits */
++		pipe->alpha_enable = 0;
++		pipe->unpack_tight = 1;
++		pipe->unpack_align_msb = 0;
++		pipe->unpack_count = 2;
++		pipe->element2 = C2_R_Cr;	/* R */
++		pipe->element1 = C0_G_Y;	/* G */
++		pipe->element0 = C1_B_Cb;	/* B */
++		pipe->bpp = 3;	/* 3 bpp */
++		pipe->chroma_sample = MDP4_CHROMA_RGB;
++		break;
+ 	case MDP_BGR_565:
+ 		pipe->frame_format = MDP4_FRAME_FORMAT_LINEAR;
+ 		pipe->fetch_plane = OVERLAY_PLANE_INTERLEAVED;
+@@ -1576,6 +1600,14 @@ void transp_color_key(int format, uint32 transp,
+ 		g_num = 8;
+ 		b_num = 8;
+ 		break;
++	case MDP_BGR_888:
++		b_start = 16;
++		g_start = 8;
++		r_start = 0;
++		r_num = 8;
++		g_num = 8;
++		b_num = 8;
++		break;
+ 	case MDP_RGBA_8888:
+ 	case MDP_RGBX_8888:
+ 		b_start = 16;
+diff --git a/drivers/video/msm/mdp_dma.c b/drivers/video/msm/mdp_dma.c
+index ffb32578c34..32d346095b0 100644
+--- a/drivers/video/msm/mdp_dma.c
++++ b/drivers/video/msm/mdp_dma.c
+@@ -88,9 +88,10 @@ static void mdp_dma2_update_lcd(struct msm_fb_data_type *mfd)
+ 	}
+ #endif
+ 
+-	if (mfd->fb_imgType == MDP_BGR_565)
+-		dma2_cfg_reg |= DMA_PACK_PATTERN_BGR;
+-	else if (mfd->fb_imgType == MDP_RGBA_8888)
++	if (mfd->fb_imgType == MDP_BGR_565
++		|| mfd->fb_imgType == MDP_BGR_888
++		|| mfd->fb_imgType == MDP_ABGR_8888
++	)
+ 		dma2_cfg_reg |= DMA_PACK_PATTERN_BGR;
+ 	else
+ 		dma2_cfg_reg |= DMA_PACK_PATTERN_RGB;
+diff --git a/drivers/video/msm/mdp_dma_dsi_video.c b/drivers/video/msm/mdp_dma_dsi_video.c
+index 6dbe9d4c85d..a97b31d98f7 100644
+--- a/drivers/video/msm/mdp_dma_dsi_video.c
++++ b/drivers/video/msm/mdp_dma_dsi_video.c
+@@ -116,9 +116,10 @@ int mdp_dsi_video_on(struct platform_device *pdev)
+ 
+ 	dma2_cfg_reg = DMA_PACK_ALIGN_LSB | DMA_OUT_SEL_DSI_VIDEO;
+ 
+-	if (mfd->fb_imgType == MDP_BGR_565)
+-		dma2_cfg_reg |= DMA_PACK_PATTERN_BGR;
+-	else if (mfd->fb_imgType == MDP_RGBA_8888)
++	if (mfd->fb_imgType == MDP_BGR_565
++		|| mfd->fb_imgType == MDP_BGR_888
++		|| mfd->fb_imgType == MDP_ABGR_8888
++	)
+ 		dma2_cfg_reg |= DMA_PACK_PATTERN_BGR;
+ 	else
+ 		dma2_cfg_reg |= DMA_PACK_PATTERN_RGB;
+diff --git a/drivers/video/msm/mdp_dma_lcdc.c b/drivers/video/msm/mdp_dma_lcdc.c
+index b80f9eac6ff..6165636ad12 100644
+--- a/drivers/video/msm/mdp_dma_lcdc.c
++++ b/drivers/video/msm/mdp_dma_lcdc.c
+@@ -138,9 +138,10 @@ int mdp_lcdc_on(struct platform_device *pdev)
+ 
+ 	dma2_cfg_reg = DMA_PACK_ALIGN_LSB | DMA_OUT_SEL_LCDC;
+ 
+-	if (mfd->fb_imgType == MDP_BGR_565)
+-		dma2_cfg_reg |= DMA_PACK_PATTERN_BGR;
+-	else if (mfd->fb_imgType == MDP_RGBA_8888)
++	if (mfd->fb_imgType == MDP_BGR_565
++		|| mfd->fb_imgType == MDP_BGR_888
++		|| mfd->fb_imgType == MDP_ABGR_8888
++	)
+ 		dma2_cfg_reg |= DMA_PACK_PATTERN_BGR;
+ 	else
+ 		dma2_cfg_reg |= DMA_PACK_PATTERN_RGB;
+diff --git a/drivers/video/msm/mdp_dma_s.c b/drivers/video/msm/mdp_dma_s.c
+index c5a2402c365..0361f343d59 100644
+--- a/drivers/video/msm/mdp_dma_s.c
++++ b/drivers/video/msm/mdp_dma_s.c
+@@ -45,7 +45,10 @@ static void mdp_dma_s_update_lcd(struct msm_fb_data_type *mfd)
+ 	dma_s_cfg_reg = DMA_PACK_TIGHT | DMA_PACK_ALIGN_LSB |
+ 	    DMA_OUT_SEL_AHB | DMA_IBUF_NONCONTIGUOUS;
+ 
+-	if (mfd->fb_imgType == MDP_BGR_565)
++	if (mfd->fb_imgType == MDP_BGR_565
++		|| mfd->fb_imgType == MDP_BGR_888
++		|| mfd->fb_imgType == MDP_ABGR_8888
++	)
+ 		dma_s_cfg_reg |= DMA_PACK_PATTERN_BGR;
+ 	else
+ 		dma_s_cfg_reg |= DMA_PACK_PATTERN_RGB;
+diff --git a/drivers/video/msm/mdp_hw.h b/drivers/video/msm/mdp_hw.h
+index f35a757d473..624f8a51903 100644
+--- a/drivers/video/msm/mdp_hw.h
++++ b/drivers/video/msm/mdp_hw.h
+@@ -509,6 +509,8 @@ void mdp_ppp_dump_debug(const struct mdp_info *mdp);
+ 					PPP_##dir##_PACK_ALIGN_LSB | \
+ 					PPP_##dir##_PLANE_INTERLVD)
+ 
++#define PPP_CFG_MDP_BGR_888(dir)       PPP_CFG_MDP_RGB_888(dir)
++
+ #define PPP_CFG_MDP_ARGB_8888(dir)     (PPP_##dir##_C2R_8BIT | \
+ 					PPP_##dir##_C0G_8BIT | \
+ 					PPP_##dir##_C1B_8BIT | \
+@@ -523,6 +525,7 @@ void mdp_ppp_dump_debug(const struct mdp_info *mdp);
+ #define PPP_CFG_MDP_XRGB_8888(dir) PPP_CFG_MDP_ARGB_8888(dir)
+ #define PPP_CFG_MDP_RGBA_8888(dir) PPP_CFG_MDP_ARGB_8888(dir)
+ #define PPP_CFG_MDP_BGRA_8888(dir) PPP_CFG_MDP_ARGB_8888(dir)
++#define PPP_CFG_MDP_ABGR_8888(dir) PPP_CFG_MDP_ARGB_8888(dir)
+ #define PPP_CFG_MDP_RGBX_8888(dir) PPP_CFG_MDP_ARGB_8888(dir)
+ 
+ #define PPP_CFG_MDP_Y_CBCR_H2V2(dir)   (PPP_##dir##_C2R_8BIT | \
+@@ -562,15 +565,19 @@ void mdp_ppp_dump_debug(const struct mdp_info *mdp);
+ #define PPP_PACK_PATTERN_MDP_RGB_565 \
+ 	MDP_GET_PACK_PATTERN(0, CLR_R, CLR_G, CLR_B, 8)
+ #define PPP_PACK_PATTERN_MDP_RGB_888 PPP_PACK_PATTERN_MDP_RGB_565
++#define PPP_PACK_PATTERN_MDP_BGR_888 \
++	MDP_GET_PACK_PATTERN(0, CLR_B, CLR_G, CLR_R, 8)
+ #define PPP_PACK_PATTERN_MDP_XRGB_8888 \
+ 	MDP_GET_PACK_PATTERN(CLR_B, CLR_G, CLR_R, CLR_ALPHA, 8)
+ #define PPP_PACK_PATTERN_MDP_ARGB_8888 PPP_PACK_PATTERN_MDP_XRGB_8888
+-#define PPP_PACK_PATTERN_MDP_RGBA_8888 \
++#define PPP_PACK_PATTERN_MDP_ABGR_888 \
+ 	MDP_GET_PACK_PATTERN(CLR_ALPHA, CLR_B, CLR_G, CLR_R, 8)
++#define PPP_PACK_PATTERN_MDP_RGBA_8888 \
++	MDP_GET_PACK_PATTERN(CLR_R, CLR_G, CLR_B, CLR_ALPHA, 8)
+ #define PPP_PACK_PATTERN_MDP_BGRA_8888 \
+-	MDP_GET_PACK_PATTERN(CLR_ALPHA, CLR_R, CLR_G, CLR_B, 8)
++	MDP_GET_PACK_PATTERN(CLR_B, CLR_G, CLR_R, CLR_ALPHA, 8)
+ #define PPP_PACK_PATTERN_MDP_RGBX_8888 \
+-	MDP_GET_PACK_PATTERN(CLR_ALPHA, CLR_B, CLR_G, CLR_R, 8)
++	MDP_GET_PACK_PATTERN(CLR_R, CLR_G, CLR_B, CLR_ALPHA, 8)
+ #define PPP_PACK_PATTERN_MDP_Y_CBCR_H2V1 \
+ 	MDP_GET_PACK_PATTERN(0, 0, CLR_CB, CLR_CR, 8)
+ #define PPP_PACK_PATTERN_MDP_Y_CBCR_H2V2 PPP_PACK_PATTERN_MDP_Y_CBCR_H2V1
+@@ -582,6 +589,8 @@ void mdp_ppp_dump_debug(const struct mdp_info *mdp);
+ 
+ #define PPP_CHROMA_SAMP_MDP_RGB_565(dir) PPP_OP_##dir##_CHROMA_RGB
+ #define PPP_CHROMA_SAMP_MDP_RGB_888(dir) PPP_OP_##dir##_CHROMA_RGB
++#define PPP_CHROMA_SAMP_MDP_BGR_888(dir) PPP_OP_##dir##_CHROMA_RGB
++#define PPP_CHROMA_SAMP_MDP_ABGR_8888(dir) PPP_OP_##dir##_CHROMA_RGB
+ #define PPP_CHROMA_SAMP_MDP_XRGB_8888(dir) PPP_OP_##dir##_CHROMA_RGB
+ #define PPP_CHROMA_SAMP_MDP_ARGB_8888(dir) PPP_OP_##dir##_CHROMA_RGB
+ #define PPP_CHROMA_SAMP_MDP_RGBA_8888(dir) PPP_OP_##dir##_CHROMA_RGB
+@@ -597,6 +606,8 @@ void mdp_ppp_dump_debug(const struct mdp_info *mdp);
+ #define PPP_ARRAY0(name) \
+ 	[MDP_RGB_565] = PPP_##name##_MDP_RGB_565,\
+ 	[MDP_RGB_888] = PPP_##name##_MDP_RGB_888,\
++	[MDP_BGR_888] = PPP_##name##_MDP_BGR_888,\
++	[MDP_ABGR_8888] = PPP_##name##_MDP_ABGR_8888,\
+ 	[MDP_XRGB_8888] = PPP_##name##_MDP_XRGB_8888,\
+ 	[MDP_ARGB_8888] = PPP_##name##_MDP_ARGB_8888,\
+ 	[MDP_RGBA_8888] = PPP_##name##_MDP_RGBA_8888,\
+@@ -611,6 +622,8 @@ void mdp_ppp_dump_debug(const struct mdp_info *mdp);
+ #define PPP_ARRAY1(name, dir) \
+ 	[MDP_RGB_565] = PPP_##name##_MDP_RGB_565(dir),\
+ 	[MDP_RGB_888] = PPP_##name##_MDP_RGB_888(dir),\
++	[MDP_BGR_888] = PPP_##name##_MDP_BGR_888(dir),\
++	[MDP_ABGR_8888] = PPP_##name##_MDP_ABGR_8888(dir),\
+ 	[MDP_XRGB_8888] = PPP_##name##_MDP_XRGB_8888(dir),\
+ 	[MDP_ARGB_8888] = PPP_##name##_MDP_ARGB_8888(dir),\
+ 	[MDP_RGBA_8888] = PPP_##name##_MDP_RGBA_8888(dir),\
+@@ -626,11 +639,12 @@ void mdp_ppp_dump_debug(const struct mdp_info *mdp);
+ 		       (img == MDP_Y_CRCB_H2V1) | (img == MDP_Y_CBCR_H2V1) | \
+ 		       (img == MDP_YCRYCB_H2V1))
+ #define IS_RGB(img) ((img == MDP_RGB_565) | (img == MDP_RGB_888) | \
++                     (img == MDP_BGR_888) | (img == MDP_ABGR_8888) | \
+ 		     (img == MDP_ARGB_8888) | (img == MDP_RGBA_8888) | \
+ 		     (img == MDP_XRGB_8888) | (img == MDP_BGRA_8888) | \
+ 		     (img == MDP_RGBX_8888))
+ #define HAS_ALPHA(img) ((img == MDP_ARGB_8888) | (img == MDP_RGBA_8888) | \
+-			(img == MDP_BGRA_8888))
++			(img == MDP_BGRA_8888) | (img == MDP_ABGR_8888))
+ 
+ #define IS_PSEUDOPLNR(img) ((img == MDP_Y_CRCB_H2V2) | \
+ 			    (img == MDP_Y_CBCR_H2V2) | \
+diff --git a/drivers/video/msm/mdp_ppp.c b/drivers/video/msm/mdp_ppp.c
+index 11dd0d24ded..b78ac483eae 100644
+--- a/drivers/video/msm/mdp_ppp.c
++++ b/drivers/video/msm/mdp_ppp.c
+@@ -44,6 +44,8 @@
+ static uint32_t bytes_per_pixel[] = {
+ 	[MDP_RGB_565] = 2,
+ 	[MDP_RGB_888] = 3,
++	[MDP_BGR_888] = 3,
++	[MDP_ABGR_8888] = 4,
+ 	[MDP_XRGB_8888] = 4,
+ 	[MDP_ARGB_8888] = 4,
+ 	[MDP_RGBA_8888] = 4,
+@@ -402,6 +404,7 @@ static void mdp_ppp_setbg(MDPIBUF *iBuf)
+ 		break;
+ 
+ 	case MDP_RGB_888:
++	case MDP_BGR_888:
+ 		/*
+ 		 * 888 = 3bytes
+ 		 * RGB = 3Components
+@@ -412,13 +415,18 @@ static void mdp_ppp_setbg(MDPIBUF *iBuf)
+ 		PPP_SRC_INTERLVD_3COMPONENTS | PPP_SRC_UNPACK_TIGHT |
+ 		PPP_SRC_UNPACK_ALIGN_LSB | PPP_SRC_FETCH_PLANES_INTERLVD;
+ 
+-		unpack_pattern =
+-		    MDP_GET_PACK_PATTERN(0, CLR_R, CLR_G, CLR_B, 8);
++		if (iBuf->ibuf_type == MDP_BGR_888)
++			unpack_pattern =
++			    MDP_GET_PACK_PATTERN(0, CLR_B, CLR_G, CLR_R, 8);
++		else
++			unpack_pattern =
++			    MDP_GET_PACK_PATTERN(0, CLR_R, CLR_G, CLR_B, 8);
+ 		break;
+ 
+ 	case MDP_BGRA_8888:
+ 	case MDP_RGBA_8888:
+ 	case MDP_ARGB_8888:
++	case MDP_ABGR_8888:
+ 	case MDP_XRGB_8888:
+ 	case MDP_RGBX_8888:
+ 		/*
+@@ -434,16 +442,23 @@ static void mdp_ppp_setbg(MDPIBUF *iBuf)
+ 
+ 		if (iBuf->ibuf_type == MDP_BGRA_8888)
+ 			unpack_pattern =
+-			    MDP_GET_PACK_PATTERN(CLR_ALPHA, CLR_R, CLR_G, CLR_B,
++			    MDP_GET_PACK_PATTERN(CLR_B, CLR_G, CLR_R, CLR_ALPHA,
+ 						 8);
+-		else if (iBuf->ibuf_type == MDP_RGBA_8888 ||
+-				 iBuf->ibuf_type == MDP_RGBX_8888)
++		else if (iBuf->ibuf_type == MDP_RGBA_8888)
+ 			unpack_pattern =
+-			    MDP_GET_PACK_PATTERN(CLR_ALPHA, CLR_B, CLR_G, CLR_R,
++			    MDP_GET_PACK_PATTERN(CLR_R, CLR_G, CLR_B, CLR_ALPHA,
++						 8);
++		else if (iBuf->ibuf_type == MDP_RGBX_8888)
++			unpack_pattern =
++			    MDP_GET_PACK_PATTERN(CLR_R, CLR_G, CLR_B, 0,
+ 						 8);
+ 		else if (iBuf->ibuf_type == MDP_XRGB_8888)
+ 			unpack_pattern =
+-			    MDP_GET_PACK_PATTERN(CLR_ALPHA, CLR_R, CLR_G, CLR_B,
++			    MDP_GET_PACK_PATTERN(0, CLR_R, CLR_G, CLR_B,
++						 8);
++		else if (iBuf->ibuf_type == MDP_ABGR_8888)
++			unpack_pattern =
++			    MDP_GET_PACK_PATTERN(CLR_ALPHA, CLR_B, CLR_G, CLR_R,
+ 						 8);
+ 		else
+ 			unpack_pattern =
+@@ -594,8 +609,13 @@ struct mdp_blit_req *req, struct file *p_src_file, struct file *p_dst_file)
+ 	 */
+ 	switch (iBuf->ibuf_type) {
+ 	case MDP_RGB_888:
+-		dst_packPattern =
+-		    MDP_GET_PACK_PATTERN(0, CLR_R, CLR_G, CLR_B, 8);
++	case MDP_BGR_888:
++		if (iBuf->ibuf_type == MDP_BGR_888)
++			dst_packPattern =
++			    MDP_GET_PACK_PATTERN(0, CLR_B, CLR_G, CLR_R, 8);
++		else
++			dst_packPattern =
++			    MDP_GET_PACK_PATTERN(0, CLR_R, CLR_G, CLR_B, 8);
+ 		ppp_dst_cfg_reg =
+ 		    PPP_DST_C0G_8BIT | PPP_DST_C1B_8BIT | PPP_DST_C2R_8BIT |
+ 		    PPP_DST_PACKET_CNT_INTERLVD_3ELEM | PPP_DST_PACK_TIGHT |
+@@ -610,16 +630,23 @@ struct mdp_blit_req *req, struct file *p_src_file, struct file *p_dst_file)
+ 	case MDP_RGBX_8888:
+ 		if (iBuf->ibuf_type == MDP_BGRA_8888)
+ 			dst_packPattern =
+-			    MDP_GET_PACK_PATTERN(CLR_ALPHA, CLR_R, CLR_G, CLR_B,
++			    MDP_GET_PACK_PATTERN(CLR_B, CLR_G, CLR_R, CLR_ALPHA,
+ 						 8);
+-		else if (iBuf->ibuf_type == MDP_RGBA_8888 ||
+-				 iBuf->ibuf_type == MDP_RGBX_8888)
++		else if (iBuf->ibuf_type == MDP_RGBA_8888)
+ 			dst_packPattern =
+-			    MDP_GET_PACK_PATTERN(CLR_ALPHA, CLR_B, CLR_G, CLR_R,
++			    MDP_GET_PACK_PATTERN(CLR_R, CLR_G, CLR_B, CLR_ALPHA,
++						 8);
++		else if (iBuf->ibuf_type == MDP_RGBX_8888)
++			dst_packPattern =
++			    MDP_GET_PACK_PATTERN(CLR_R, CLR_G, CLR_B, 0,
+ 						 8);
+ 		else if (iBuf->ibuf_type == MDP_XRGB_8888)
+ 			dst_packPattern =
+-			    MDP_GET_PACK_PATTERN(CLR_ALPHA, CLR_R, CLR_G, CLR_B,
++			    MDP_GET_PACK_PATTERN(0, CLR_R, CLR_G, CLR_B,
++						 8);
++		else if (iBuf->ibuf_type == MDP_ABGR_8888)
++			dst_packPattern =
++			    MDP_GET_PACK_PATTERN(CLR_ALPHA, CLR_B, CLR_G, CLR_R,
+ 						 8);
+ 		else
+ 			dst_packPattern =
+@@ -780,6 +807,7 @@ struct mdp_blit_req *req, struct file *p_src_file, struct file *p_dst_file)
+ 	/* source config */
+ 	switch (iBuf->mdpImg.imgType) {
+ 	case MDP_RGB_888:
++	case MDP_BGR_888:
+ 		inpBpp = 3;
+ 		/*
+ 		 * 565 = 2bytes
+@@ -792,7 +820,10 @@ struct mdp_blit_req *req, struct file *p_src_file, struct file *p_dst_file)
+ 			PPP_SRC_UNPACK_ALIGN_LSB |
+ 			PPP_SRC_FETCH_PLANES_INTERLVD;
+ 
+-		packPattern = MDP_GET_PACK_PATTERN(0, CLR_R, CLR_G, CLR_B, 8);
++		if (iBuf->mdpImg.imgType == MDP_BGR_888)
++			packPattern = MDP_GET_PACK_PATTERN(0, CLR_B, CLR_G, CLR_R, 8);
++		else
++			packPattern = MDP_GET_PACK_PATTERN(0, CLR_R, CLR_G, CLR_B, 8);
+ 
+ 		ppp_operation_reg |= PPP_OP_COLOR_SPACE_RGB |
+ 		    PPP_OP_SRC_CHROMA_RGB | PPP_OP_DST_CHROMA_RGB;
+diff --git a/drivers/video/msm/msm_fb.c b/drivers/video/msm/msm_fb.c
+index 12e644d8728..486ac9c1e2c 100644
+--- a/drivers/video/msm/msm_fb.c
++++ b/drivers/video/msm/msm_fb.c
+@@ -1386,6 +1386,44 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
+ 		bpp = 3;
+ 		break;
+ 
++	case MDP_BGR_888:
++		fix->type = FB_TYPE_PACKED_PIXELS;
++		fix->xpanstep = 1;
++		fix->ypanstep = 1;
++		var->vmode = FB_VMODE_NONINTERLACED;
++		var->blue.offset = 16;
++		var->green.offset = 8;
++		var->red.offset = 0;
++		var->blue.length = 8;
++		var->green.length = 8;
++		var->red.length = 8;
++		var->blue.msb_right = 0;
++		var->green.msb_right = 0;
++		var->red.msb_right = 0;
++		var->transp.offset = 0;
++		var->transp.length = 0;
++		bpp = 3;
++		break;
++
++	case MDP_ABGR_8888:
++		fix->type = FB_TYPE_PACKED_PIXELS;
++		fix->xpanstep = 1;
++		fix->ypanstep = 1;
++		var->vmode = FB_VMODE_NONINTERLACED;
++		var->blue.offset = 16;
++		var->green.offset = 8;
++		var->red.offset = 0;
++		var->blue.length = 8;
++		var->green.length = 8;
++		var->red.length = 8;
++		var->blue.msb_right = 0;
++		var->green.msb_right = 0;
++		var->red.msb_right = 0;
++		var->transp.offset = 24;
++		var->transp.length = 8;
++		bpp = 4;
++		break;
++
+ 	case MDP_ARGB_8888:
+ 		fix->type = FB_TYPE_PACKED_PIXELS;
+ 		fix->xpanstep = 1;
+@@ -1405,6 +1443,25 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
+ 		bpp = 4;
+ 		break;
+ 
++	case MDP_XRGB_8888:
++		fix->type = FB_TYPE_PACKED_PIXELS;
++		fix->xpanstep = 1;
++		fix->ypanstep = 1;
++		var->vmode = FB_VMODE_NONINTERLACED;
++		var->blue.offset = 0;
++		var->green.offset = 8;
++		var->red.offset = 16;
++		var->blue.length = 8;
++		var->green.length = 8;
++		var->red.length = 8;
++		var->blue.msb_right = 0;
++		var->green.msb_right = 0;
++		var->red.msb_right = 0;
++		var->transp.offset = 0;
++		var->transp.length = 0;
++		bpp = 4;
++		break;
++
+ 	case MDP_RGBA_8888:
+ 		fix->type = FB_TYPE_PACKED_PIXELS;
+ 		fix->xpanstep = 1;
+@@ -1424,6 +1481,44 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
+ 		bpp = 4;
+ 		break;
+ 
++	case MDP_BGRA_8888:
++		fix->type = FB_TYPE_PACKED_PIXELS;
++		fix->xpanstep = 1;
++		fix->ypanstep = 1;
++		var->vmode = FB_VMODE_NONINTERLACED;
++		var->blue.offset = 24;
++		var->green.offset = 16;
++		var->red.offset = 8;
++		var->blue.length = 8;
++		var->green.length = 8;
++		var->red.length = 8;
++		var->blue.msb_right = 0;
++		var->green.msb_right = 0;
++		var->red.msb_right = 0;
++		var->transp.offset = 0;
++		var->transp.length = 8;
++		bpp = 4;
++		break;
++
++	case MDP_RGBX_8888:
++		fix->type = FB_TYPE_PACKED_PIXELS;
++		fix->xpanstep = 1;
++		fix->ypanstep = 1;
++		var->vmode = FB_VMODE_NONINTERLACED;
++		var->blue.offset = 8;
++		var->green.offset = 16;
++		var->red.offset = 24;
++		var->blue.length = 8;
++		var->green.length = 8;
++		var->red.length = 8;
++		var->blue.msb_right = 0;
++		var->green.msb_right = 0;
++		var->red.msb_right = 0;
++		var->transp.offset = 0;
++		var->transp.length = 0;
++		bpp = 4;
++		break;
++
+ 	case MDP_YCRYCB_H2V1:
+ 		/* ToDo: need to check TV-Out YUV422i framebuffer format */
+ 		/*       we might need to create new type define */
+@@ -2252,9 +2347,15 @@ static int msm_fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
+ 
+ 	msm_fb_pan_idle(mfd);
+ 	if (var->rotate != FB_ROTATE_UR)
++	{
++		printk(KERN_ERR "msm_fb: EINVAL msm_fb_check_var:%d", __LINE__);
+ 		return -EINVAL;
++	}
+ 	if (var->grayscale != info->var.grayscale)
++	{
++		printk(KERN_ERR "msm_fb: EINVAL msm_fb_check_var:%d", __LINE__);
+ 		return -EINVAL;
++	}
+ 
+ 	switch (var->bits_per_pixel) {
+ 	case 16:
+@@ -2271,13 +2372,16 @@ static int msm_fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
+ 			(var->red.msb_right != 0) ||
+ 			(var->transp.offset != 0) ||
+ 			(var->transp.length != 0))
++			{
++				printk(KERN_ERR "msm_fb: EINVAL msm_fb_check_var:%d", __LINE__);
+ 				return -EINVAL;
++			}
+ 		break;
+ 
+ 	case 24:
+-		if ((var->blue.offset != 0) ||
++		/* common */
++		if (
+ 			(var->green.offset != 8) ||
+-			(var->red.offset != 16) ||
+ 			(var->blue.length != 8) ||
+ 			(var->green.length != 8) ||
+ 			(var->red.length != 8) ||
+@@ -2288,62 +2392,138 @@ static int msm_fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
+ 				(var->transp.length == 0)) ||
+ 			  ((var->transp.offset == 24) &&
+ 				(var->transp.length == 8))))
++			{
++				printk(KERN_ERR "msm_fb: EINVAL msm_fb_check_var:%d", __LINE__);
+ 				return -EINVAL;
++			}
++
++		/* RGB888, BGR888 */
++		if (!(
++			(var->blue.offset == 0 && var->red.offset == 16)
++			|| (var->blue.offset == 16 && var->red.offset == 0)))
++			{
++				printk(KERN_ERR "msm_fb: EINVAL msm_fb_check_var:%d", __LINE__);
++				return -EINVAL;
++			}
+ 		break;
+ 
+ 	case 32:
+-		/* Figure out if the user meant RGBA or ARGB
+-		   and verify the position of the RGB components */
+-
+-		if (var->transp.offset == 24) {
+-			if ((var->blue.offset != 0) ||
+-			    (var->green.offset != 8) ||
+-			    (var->red.offset != 16))
++		/* We need to support ARGB, XRGB, RGBA, BGRA and RGBX. */
++
++		/* First, check if it's *RGB, RGB*, *BGR or BGR*. */
++		if (var->red.offset == 16) {
++			if ((var->green.offset != 8)
++				|| (var->blue.offset != 0))
++			{
++				printk(KERN_ERR "msm_fb: EINVAL msm_fb_check_var:%d", __LINE__);
++				return -EINVAL;
++			}
++			// *RGB
++			if (!(
++				(var->transp.length == 0)
++				|| (var->transp.length == 8 && var->transp.offset == 24)))
++			{
++				printk(KERN_ERR "msm_fb: EINVAL msm_fb_check_var:%d", __LINE__);
++				return -EINVAL;
++			}
++		} else if (var->red.offset == 24) {
++			if ((var->green.offset != 16)
++				|| (var->blue.offset != 8))
++			{
++				printk(KERN_ERR "msm_fb: EINVAL msm_fb_check_var:%d", __LINE__);
+ 				return -EINVAL;
+-		} else if (var->transp.offset == 0) {
+-			if ((var->blue.offset != 8) ||
+-			    (var->green.offset != 16) ||
+-			    (var->red.offset != 24))
++			}
++			// RGB*
++			if (!(
++				(var->transp.length == 0)
++				|| (var->transp.length == 8 && var->transp.offset == 0)))
++			{
++				printk(KERN_ERR "msm_fb: EINVAL msm_fb_check_var:%d", __LINE__);
++				return -EINVAL;
++			}
++		} else if (var->red.offset == 8) {
++			if ((var->green.offset != 16)
++				|| (var->blue.offset != 24))
++			{
++				printk(KERN_ERR "msm_fb: EINVAL msm_fb_check_var:%d", __LINE__);
++				return -EINVAL;
++			}
++			// BGRA
++			if ((var->transp.offset != 0)
++				|| (var->transp.length != 8))
++			{
++				printk(KERN_ERR "msm_fb: EINVAL msm_fb_check_var:%d", __LINE__);
++				return -EINVAL;
++			}
++		} else if (var->red.offset == 0) {
++			if ((var->green.offset != 8)
++				|| (var->blue.offset != 16))
++			{
++				printk(KERN_ERR "msm_fb: EINVAL msm_fb_check_var:%d", __LINE__);
+ 				return -EINVAL;
++			}
++			// ABGR
++			if ((var->transp.offset != 24)
++				|| (var->transp.length != 8))
++			{
++				printk(KERN_ERR "msm_fb: EINVAL msm_fb_check_var:%d", __LINE__);
++				return -EINVAL;
++			}
+ 		} else
++		{
++			printk(KERN_ERR "msm_fb: EINVAL msm_fb_check_var:%d", __LINE__);
+ 			return -EINVAL;
++		}
+ 
+ 		/* Check the common values for both RGBA and ARGB */
+ 
+ 		if ((var->blue.length != 8) ||
+ 		    (var->green.length != 8) ||
+ 		    (var->red.length != 8) ||
+-		    (var->transp.length != 8) ||
+ 		    (var->blue.msb_right != 0) ||
+ 		    (var->green.msb_right != 0) ||
+ 		    (var->red.msb_right != 0))
++		{
++			printk(KERN_ERR "msm_fb: EINVAL msm_fb_check_var:%d", __LINE__);
+ 			return -EINVAL;
++		}
+ 
+ 		break;
+ 
+ 	default:
++		printk(KERN_ERR "msm_fb: EINVAL msm_fb_check_var:%d", __LINE__);
+ 		return -EINVAL;
+ 	}
+ 
+-	if ((var->xres_virtual <= 0) || (var->yres_virtual <= 0))
++	if ((var->xres_virtual <= 0) || (var->yres_virtual <= 0)) {
++		printk(KERN_ERR "msm_fb: EINVAL msm_fb_check_var:%d", __LINE__);
+ 		return -EINVAL;
++	}
+ 
+ 	if (!bf_supported ||
+ 		(info->node != 1 && info->node != 2))
+ 		if (info->fix.smem_len <
+ 		    (var->xres_virtual*
+ 		     var->yres_virtual*
+-		     (var->bits_per_pixel/8)))
++		     (var->bits_per_pixel/8))) {
++			printk(KERN_ERR "msm_fb: cannot fit buffer into smem");
+ 			return -EINVAL;
++		}
+ 
+-	if ((var->xres == 0) || (var->yres == 0))
++	if ((var->xres == 0) || (var->yres == 0)) {
++		printk(KERN_ERR "msm_fb: EINVAL msm_fb_check_var:%d", __LINE__);
+ 		return -EINVAL;
++	}
+ 
+-	if (var->xoffset > (var->xres_virtual - var->xres))
++	if (var->xoffset > (var->xres_virtual - var->xres)) {
++		printk(KERN_ERR "msm_fb: EINVAL msm_fb_check_var:%d", __LINE__);
+ 		return -EINVAL;
++	}
+ 
+-	if (var->yoffset > (var->yres_virtual - var->yres))
++	if (var->yoffset > (var->yres_virtual - var->yres)) {
++		printk(KERN_ERR "msm_fb: EINVAL msm_fb_check_var:%d", __LINE__);
+ 		return -EINVAL;
++	}
+ 
+ 	return 0;
+ }
+@@ -2391,7 +2571,10 @@ static int msm_fb_set_par(struct fb_info *info)
+ 
+ 	case 24:
+ 		if ((var->transp.offset == 0) && (var->transp.length == 0))
+-			mfd->fb_imgType = MDP_RGB_888;
++			if (var->red.offset == 0)
++				mfd->fb_imgType = MDP_BGR_888;
++			else
++				mfd->fb_imgType = MDP_RGB_888;
+ 		else if ((var->transp.offset == 24) &&
+ 				(var->transp.length == 8)) {
+ 			mfd->fb_imgType = MDP_ARGB_8888;
+@@ -2400,13 +2583,25 @@ static int msm_fb_set_par(struct fb_info *info)
+ 		break;
+ 
+ 	case 32:
+-		if (var->transp.offset == 24)
+-			mfd->fb_imgType = MDP_ARGB_8888;
++		if (var->transp.length == 0)
++			if (var->red.offset == 24)
++				mfd->fb_imgType = MDP_RGBX_8888;
++			else
++				mfd->fb_imgType = MDP_XRGB_8888;
++		else if (var->transp.offset == 0)
++			if (var->red.offset == 24)
++				mfd->fb_imgType = MDP_RGBA_8888;
++			else
++				mfd->fb_imgType = MDP_BGRA_8888;
+ 		else
+-			mfd->fb_imgType = MDP_RGBA_8888;
++			if (var->red.offset == 16)
++				mfd->fb_imgType = MDP_ARGB_8888;
++			else
++				mfd->fb_imgType = MDP_ABGR_8888;
+ 		break;
+ 
+ 	default:
++		printk(KERN_ERR "msm_fb: invalid bpp value %d", var->bits_per_pixel);
+ 		return -EINVAL;
+ 	}
+ 
+@@ -2426,6 +2621,8 @@ static int msm_fb_set_par(struct fb_info *info)
+ 
+ 		blank = 1;
+ 	}
++
++	mdp_set_dma_pan_info(info, NULL, TRUE);
+ 	mfd->fbi->fix.line_length = msm_fb_line_length(mfd->index, var->xres,
+ 						       var->bits_per_pixel/8);
+ 
+diff --git a/drivers/video/msm/msm_fb_def.h b/drivers/video/msm/msm_fb_def.h
+index dcd648bab80..3567644b513 100644
+--- a/drivers/video/msm/msm_fb_def.h
++++ b/drivers/video/msm/msm_fb_def.h
+@@ -86,15 +86,7 @@ typedef unsigned int boolean;
+ #define MSM_FB_ENABLE_DBGFS
+ #define FEATURE_MDDI
+ 
+-#if defined(CONFIG_FB_MSM_DEFAULT_DEPTH_RGB565)
+-#define MSMFB_DEFAULT_TYPE MDP_RGB_565
+-#elif defined(CONFIG_FB_MSM_DEFAULT_DEPTH_ARGB8888)
+-#define MSMFB_DEFAULT_TYPE MDP_ARGB_8888
+-#elif defined(CONFIG_FB_MSM_DEFAULT_DEPTH_RGBA8888)
+ #define MSMFB_DEFAULT_TYPE MDP_RGBA_8888
+-#else
+-#define MSMFB_DEFAULT_TYPE MDP_RGB_565
+-#endif
+ 
+ #define outp32(addr, val) writel(val, addr)
+ #define outp16(addr, val) writew(val, addr)
+diff --git a/include/linux/msm_mdp.h b/include/linux/msm_mdp.h
+index 8f829efcca2..361975683e6 100644
+--- a/include/linux/msm_mdp.h
++++ b/include/linux/msm_mdp.h
+@@ -100,8 +100,8 @@ enum {
+ 	MDP_Y_CBCR_H2V1,   /* Y and CrCb, pseduo planer w/ Cr is in MSB */
+ 	MDP_Y_CRCB_H1V2,
+ 	MDP_Y_CBCR_H1V2,
+-	MDP_RGBA_8888,    /* ARGB 888 */
+-	MDP_BGRA_8888,	  /* ABGR 888 */
++	MDP_RGBA_8888,    /* RGBA 888 */
++	MDP_BGRA_8888,	  /* BGRA 888 */
+ 	MDP_RGBX_8888,	  /* RGBX 888 */
+ 	MDP_Y_CRCB_H2V2_TILE,  /* Y and CrCb, pseudo planer tile */
+ 	MDP_Y_CBCR_H2V2_TILE,  /* Y and CbCr, pseudo planer tile */
+@@ -113,6 +113,8 @@ enum {
+ 	MDP_YCRCB_H1V1,   /* YCrCb interleave */
+ 	MDP_YCBCR_H1V1,   /* YCbCr interleave */
+ 	MDP_BGR_565,      /* BGR 565 planer */
++	MDP_BGR_888,      /* BGR 888 planer */
++	MDP_ABGR_8888,      /* ABGR 8888 planer */
+ 	MDP_IMGTYPE_LIMIT,
+ 	MDP_RGB_BORDERFILL,	/* border fill pipe */
+ 	MDP_FB_FORMAT = MDP_IMGTYPE2_START,    /* framebuffer format */

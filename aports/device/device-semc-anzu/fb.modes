@@ -1,0 +1,31 @@
+mode "480x854-ARGB_8888"
+	# D: 0.005 MHz, H: 0.011 kHz, V: 0.013 Hz
+	geometry 480 854 480 854 32
+	timings 190000000 0 0 0 0 0 0
+	accel false
+	rgba 8/24,8/16,8/8,8/0
+endmode
+
+mode "480x854-BGRA_8888"
+	# D: 0.005 MHz, H: 0.011 kHz, V: 0.013 Hz
+	geometry 480 854 480 854 32
+	timings 190000000 0 0 0 0 0 0
+	accel false
+	rgba 8/0,8/8,8/16,8/24
+endmode
+
+mode "480x854-BGR_888"
+	# D: 0.005 MHz, H: 0.011 kHz, V: 0.013 Hz
+	geometry 480 854 480 854 24
+	timings 190000000 0 0 0 0 0 0
+	accel false
+	rgba 8/0,8/8,8/16,0/0
+endmode
+
+mode "480x854-RGB_888"
+	# D: 0.005 MHz, H: 0.011 kHz, V: 0.013 Hz
+	geometry 480 854 480 854 24
+	timings 190000000 0 0 0 0 0 0
+	accel false
+	rgba 8/16,8/8,8/0,0/0
+endmode
